@@ -1,14 +1,17 @@
-package Wits0
+package wits0
 
 import (
-	"io/ioutil"
 	"encoding/json"
+	"io/ioutil"
 	"testing"
+	"time"
+
+	"github.com/TIBCOSoftware/flogo-lib/logger"
 
 	"github.com/TIBCOSoftware/flogo-lib/core/trigger"
 )
 
-func getJsonMetadata() string {
+func getJSONMetadata() string {
 	jsonMetadataBytes, err := ioutil.ReadFile("trigger.json")
 	if err != nil {
 		panic("No Json Metadata found for trigger.json path")
@@ -17,38 +20,65 @@ func getJsonMetadata() string {
 }
 
 const testConfig string = `{
-  "id": "mytrigger",
-  "settings": {
-    "setting": "somevalue"
-  },
-  "handlers": [
-    {
-      "settings": {
-        "handler_setting": "somevalue"
-      },
-      "action" {
-	     "id": "test_action"
-      }
-    }
-  ]
+	"id": "wits0",
+	"settings": {
+		"SerialPort": "/dev/ttyUSB0",
+		"HeartBeatValue": "&&\n0111-9999\n!!",
+		"PacketHeader": "&&",
+		"PacketFooter": "!!",
+		"LineSeparator":"\r\n"
+	},
+	"handlers": [{
+		"action": {
+			"id": "local://testFlow",
+			"settings": {}
+		}
+	}]
 }`
 
-func TestCreate(t *testing.T) {
+type initContext struct {
+	handlers []*trigger.Handler
+}
 
+func (ctx initContext) GetHandlers() []*trigger.Handler {
+	return ctx.handlers
+}
+func TestCreate(t *testing.T) {
+	log.SetLogLevel(logger.DebugLevel)
 	// New factory
-	md := trigger.NewMetadata(getJsonMetadata())
+	md := trigger.NewMetadata(getJSONMetadata())
 	f := NewFactory(md)
 
 	if f == nil {
 		t.Fail()
+		return
 	}
 
 	// New Trigger
 	config := trigger.Config{}
-	json.Unmarshal([]byte(testConfig), config)
+	jsonErr := json.Unmarshal([]byte(testConfig), &config)
+	if jsonErr != nil {
+		log.Error(jsonErr)
+		t.Fail()
+		return
+	}
 	trg := f.New(&config)
 
 	if trg == nil {
 		t.Fail()
 	}
+
+	initCtx := &initContext{
+		handlers: make([]*trigger.Handler, 0, len(config.Handlers)),
+	}
+
+	newTrg, _ := trg.(trigger.Initializable)
+	newTrg.Initialize(initCtx)
+
+	go func() {
+		time.Sleep(time.Second * 5)
+		trg.Stop()
+	}()
+
+	trg.Start()
 }

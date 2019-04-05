@@ -1,5 +1,5 @@
 {
-  "name": "Wits0",
+  "name": "WITS0",
   "version": "1.0.0",
   "type": "flogo:trigger",
   "ref": "github.com/swarwick/Flogo/trigger/WITS0",
@@ -7,9 +7,64 @@
   "author": "swarwick@tibco.com",
   "settings":[
     {
-      "name": "setting",
+      "name": "SerialPort",
       "type": "string",
-      "value": "default"
+      "value": "COM1"
+    },
+    {
+      "name": "BaudRate",
+      "type": "number",
+      "value": 9600
+    },
+    {
+      "name": "DataBits",
+      "type": "number",
+      "value": 8
+    },
+    {
+      "name": "StopBits",
+      "type": "number",
+      "value": 1
+    },
+    {
+      "name": "Parity",
+      "type": "number",
+      "value": 0
+    },
+    {
+      "name": "ReadTimeoutSeconds",
+      "type": "number",
+      "value": 1
+    },    
+    {
+      "name": "HeartBeatInterval",
+      "type": "number",
+      "value": 30
+    },
+    {
+      "name": "HeartBeatValue",
+      "type": "string",
+      "value": "&&\n0111-9999\n!!"
+    },
+    {
+      "name": "PacketHeader",
+      "type": "string",
+      "value": "&&"
+    },
+    {
+      "name": "PacketFooter",
+      "type": "string",
+      "value": "!!"
+    },
+    {
+      "name": "LineSeparator",
+      "type": "string",
+      "value": "\r\n"
+    },
+    {
+      "name": "OutputRaw",
+      "type": "boolean",
+      "value": "false"
     }
   ],
   "output": [
@@ -20,10 +75,6 @@
   ],
   "handler": {
     "settings": [
-      {
-        "name": "handler_setting",
-        "type": "string"
-      }
     ]
   }
 }
