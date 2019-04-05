@@ -1,5 +1,5 @@
 {
-  "name": "WITS0",
+  "name": "wits0",
   "version": "1.0.0",
   "type": "flogo:trigger",
   "ref": "github.com/swarwick/Flogo/trigger/WITS0",
