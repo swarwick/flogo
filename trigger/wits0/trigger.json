@@ -8,8 +8,7 @@
   "settings":[
     {
       "name": "SerialPort",
-      "type": "string",
-      "value": "COM1"
+      "type": "string"      
     },
     {
       "name": "BaudRate",
