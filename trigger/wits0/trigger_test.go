@@ -103,7 +103,7 @@ func (tr *TestAction) IOMetadata() *data.IOMetadata {
 	return nil
 }
 
-func TestCreate(t *testing.T) {
+func TestConnect(t *testing.T) {
 	log.SetLogLevel(logger.DebugLevel)
 	// New factory
 	md := trigger.NewMetadata(getJSONMetadata())
