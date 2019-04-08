@@ -39,7 +39,8 @@ const testConfig string = `{
 			"PacketHeader": "&&",
 			"PacketFooter": "!!",
 			"LineSeparator":"\r\n",
-			"HeartBeatInterval": 2
+			"HeartBeatInterval": 2,
+			"OutputRaw": true
 		}
 	}]
 }`

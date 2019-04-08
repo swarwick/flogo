@@ -72,6 +72,15 @@ func GetSafeNumber(endpoint *trigger.Handler, setting string, defaultValue int) 
 	return defaultValue
 }
 
+// GetSafeBool gets the bool from the config checking for empty and using default
+func GetSafeBool(endpoint *trigger.Handler, setting string, defaultValue bool) bool {
+	if settingString := GetSettingSafe(endpoint, setting, ""); settingString != "" {
+		value, _ := strconv.ParseBool(settingString)
+		return value
+	}
+	return defaultValue
+}
+
 // wits0Packet the WITS0 packet structure
 type wits0Packet struct {
 	Records []wits0Record
@@ -112,12 +121,15 @@ func (t *wits0Trigger) connectToSerial(endpoint *trigger.Handler) {
 	heartBeatValue := GetSettingSafe(endpoint, "HeartBeatValue", "&&\r\n0111-9999\r\n!!\r\n")
 	heartBeatInterval := GetSafeNumber(endpoint, "HeartBeatInterval", 30)
 	packetFooterWithLineSeparator := packetFooter + lineEnding
+	outputRaw := GetSafeBool(endpoint, "OutputRaw", false)
 
 	log.Debug("Serial Config: ", config)
 	log.Debug("packetHeader: ", packetHeader)
 	log.Debug("packetFooter: ", packetFooter)
 	log.Debug("lineEnding: ", lineEnding)
 	log.Debug("heartBeatValue: ", heartBeatValue)
+	log.Debug("heartBeatInterval: ", heartBeatInterval)
+	log.Debug("outputRaw: ", outputRaw)
 
 	log.Info("Connecting to serial port: " + t.config.GetSetting("SerialPort"))
 	stream, err := serial.OpenPort(config)
@@ -132,7 +144,7 @@ func (t *wits0Trigger) connectToSerial(endpoint *trigger.Handler) {
 	t.heartBeat(heartBeatInterval, heartBeatValue, stream)
 readLoop:
 	for {
-		buffer = readSerialData(endpoint, buffer, buf, stream, packetHeader, packetFooter, packetFooterWithLineSeparator, lineEnding)
+		buffer = readSerialData(endpoint, buffer, buf, stream, outputRaw, packetHeader, packetFooter, packetFooterWithLineSeparator, lineEnding)
 		select {
 		case <-t.stopCheck:
 			break readLoop
@@ -167,7 +179,7 @@ func (t *wits0Trigger) heartBeat(heartBeatInterval int, heartBeatValue string, s
 	}
 }
 
-func readSerialData(endpoint *trigger.Handler, buffer *bytes.Buffer, buf []byte, stream *serial.Port, packetHeader string, packetFooter string, packetFooterWithLineSeparator string, lineEnding string) *bytes.Buffer {
+func readSerialData(endpoint *trigger.Handler, buffer *bytes.Buffer, buf []byte, stream *serial.Port, outputRaw bool, packetHeader string, packetFooter string, packetFooterWithLineSeparator string, lineEnding string) *bytes.Buffer {
 	n, err := stream.Read(buf)
 	if err != nil {
 		log.Error(err)
@@ -194,31 +206,39 @@ func readSerialData(endpoint *trigger.Handler, buffer *bytes.Buffer, buf []byte,
 		if indexStart >= 0 && indexEnd > indexStart {
 			indexEndIncludeStopPacket := indexEnd + len(packetFooterWithLineSeparator)
 			packet := check[indexStart:indexEndIncludeStopPacket]
-			lines := strings.Split(packet, lineEnding)
-			records := make([]wits0Record, len(lines)-3)
-			parsingPackets := false
-			index := 0
-			for _, line := range lines {
-				line = strings.Replace(line, lineEnding, "", -1)
-				if parsingPackets {
-					if line == packetFooter {
-						parsingPackets = false
-					} else {
-						records[index].Record = line[0:2]
-						records[index].Item = line[2:4]
-						records[index].Data = line[4:len(line)]
-						index = index + 1
+			outputData := packet
+			if !outputRaw {
+
+				lines := strings.Split(packet, lineEnding)
+				records := make([]wits0Record, len(lines)-3)
+				parsingPackets := false
+				index := 0
+				for _, line := range lines {
+					line = strings.Replace(line, lineEnding, "", -1)
+					if parsingPackets {
+						if line == packetFooter {
+							parsingPackets = false
+						} else {
+							records[index].Record = line[0:2]
+							records[index].Item = line[2:4]
+							records[index].Data = line[4:len(line)]
+							index = index + 1
+						}
+					} else if line == packetHeader {
+						parsingPackets = true
 					}
-				} else if line == packetHeader {
-					parsingPackets = true
+				}
+				jsonRecord, err := json.Marshal(wits0Packet{records})
+				if err != nil {
+					log.Error("Error converting packet to JSON: ", err)
+					outputData = ""
+				} else {
+					outputData = string(jsonRecord)
 				}
 			}
-			jsonRecord, err := json.Marshal(wits0Packet{records})
-			if err != nil {
-				log.Error("Error converting packet to JSON: ", err)
-			} else {
+			if len(outputData) > 0 {
 				trgData := make(map[string]interface{})
-				trgData["data"] = string(jsonRecord)
+				trgData["data"] = outputData
 				_, err := endpoint.Handle(context.Background(), trgData)
 				if err != nil {
 					log.Error("Error starting action: ", err.Error())
