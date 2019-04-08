@@ -41,6 +41,7 @@ type Trigger struct {
 
 // Initialize implements trigger.Init.Initialize
 func (t *Trigger) Initialize(ctx trigger.InitContext) error {
+	log.Debug("Initialize")
 	t.handlers = ctx.GetHandlers()
 	t.stopCheck = make(chan bool)
 	return nil
@@ -52,20 +53,20 @@ func (t *Trigger) Metadata() *trigger.Metadata {
 }
 
 // GetSettingSafe get a setting and returns default if not found
-func GetSettingSafe(handlerCfg *trigger.Config, setting string, defaultValue string) string {
+func GetSettingSafe(endpoint *trigger.Handler, setting string, defaultValue string) string {
 	var retString string
 	defer func() {
 		if r := recover(); r != nil {
 			retString = defaultValue
 		}
 	}()
-	retString = handlerCfg.GetSetting(setting)
+	retString = endpoint.GetStringSetting(setting)
 	return retString
 }
 
 // GetSafeNumber gets the number from the config checking for empty and using default
-func GetSafeNumber(handlerCfg *trigger.Config, setting string, defaultValue int) int {
-	if settingString := GetSettingSafe(handlerCfg, setting, ""); settingString != "" {
+func GetSafeNumber(endpoint *trigger.Handler, setting string, defaultValue int) int {
+	if settingString := GetSettingSafe(endpoint, setting, ""); settingString != "" {
 		value, _ := strconv.Atoi(settingString)
 		return value
 	}
@@ -86,20 +87,28 @@ type Wits0Record struct {
 
 // Start implements trigger.Trigger.Start
 func (t *Trigger) Start() error {
+	handlers := t.handlers
+	for _, handler := range handlers {
+		t.connectToSerial(handler)
+	}
+	return nil
+}
+
+func (t *Trigger) connectToSerial(endpoint *trigger.Handler) {
 
 	config := &serial.Config{
-		Name:        t.config.GetSetting("SerialPort"),
-		Baud:        GetSafeNumber(t.config, "BaudRate", 9600),
-		ReadTimeout: time.Duration(GetSafeNumber(t.config, "ReadTimeoutSeconds", 1)),
-		Size:        byte(GetSafeNumber(t.config, "DataBits", 8)),
-		Parity:      serial.Parity(GetSafeNumber(t.config, "Parity", 0)),
-		StopBits:    serial.StopBits(GetSafeNumber(t.config, "StopBits", 1)),
+		Name:        GetSettingSafe(endpoint, "SerialPort", ""),
+		Baud:        GetSafeNumber(endpoint, "BaudRate", 9600),
+		ReadTimeout: time.Duration(GetSafeNumber(endpoint, "ReadTimeoutSeconds", 1)),
+		Size:        byte(GetSafeNumber(endpoint, "DataBits", 8)),
+		Parity:      serial.Parity(GetSafeNumber(endpoint, "Parity", 0)),
+		StopBits:    serial.StopBits(GetSafeNumber(endpoint, "StopBits", 1)),
 	}
 
-	packetHeader := GetSettingSafe(t.config, "PacketHeader", "&&")
-	packetFooter := GetSettingSafe(t.config, "PacketFooter", "!!")
-	lineEnding := GetSettingSafe(t.config, "LineSeparator", "\r\n")
-	heartBeatValue := GetSettingSafe(t.config, "HeartBeatValue", "&&\n0111-9999\n!!")
+	packetHeader := GetSettingSafe(endpoint, "PacketHeader", "&&")
+	packetFooter := GetSettingSafe(endpoint, "PacketFooter", "!!")
+	lineEnding := GetSettingSafe(endpoint, "LineSeparator", "\r\n")
+	heartBeatValue := GetSettingSafe(endpoint, "HeartBeatValue", "&&\n0111-9999\n!!")
 	packetFooterWithLineSeparator := packetFooter + lineEnding
 
 	log.Debug("Serial Config: ", config)
@@ -112,7 +121,7 @@ func (t *Trigger) Start() error {
 	stream, err := serial.OpenPort(config)
 	if err != nil {
 		log.Error(err)
-		return err
+		return
 	}
 	log.Info("Connected to serial port")
 
@@ -175,14 +184,12 @@ readLoop:
 				}
 				trgData := make(map[string]interface{})
 				trgData["data"] = jsonRecord
-				for _, handler := range t.handlers {
-					results, err := handler.Handle(context.Background(), trgData)
-					if err != nil {
-						log.Error("Error starting action: ", err.Error())
-					}
-					log.Debugf("Ran Handler: [%s]", handler)
-					log.Debugf("Results: [%v]", results)
+				results, err := endpoint.Handle(context.Background(), trgData)
+				if err != nil {
+					log.Error("Error starting action: ", err.Error())
 				}
+				log.Debugf("Ran Handler: [%s]", endpoint)
+				log.Debugf("Results: [%v]", results)
 				buffer = bytes.NewBufferString(check[indexEndIncludeStopPacket:len(check)])
 			}
 		}
@@ -192,8 +199,6 @@ readLoop:
 		default:
 		}
 	}
-
-	return nil
 }
 
 // Stop implements trigger.Trigger.Start

@@ -6,7 +6,6 @@
   "description": "Read WITS0 data from a serial port and trigger output as either raw string data or parsed into JSON",
   "author": "swarwick@tibco.com",
   "settings":[
-
   ],
   "output": [
     {
@@ -18,7 +17,8 @@
     "settings": [
       {
         "name": "SerialPort",
-        "type": "string"      
+        "type": "string",
+        "required" : true
       },
       {
         "name": "BaudRate",
