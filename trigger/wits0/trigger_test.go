@@ -28,8 +28,27 @@ const testConfig string = `{
 	},
 	"handlers": [{
 		"action": {
-			"id": "NextAction"
-		},
+            "ref": "github.com/TIBCOSoftware/flogo-contrib/action/flow",
+            "data": {
+              "flowURI": "res://flow:query"
+            },
+            "mappings": {
+              "input": [
+                {
+                  "mapTo": "request",
+                  "type": "assign",
+                  "value": "$.args"
+                }
+              ],
+              "output": [
+                {
+                  "mapTo": "data",
+                  "type": "assign",
+                  "value": "$.resp"
+                }
+              ]
+            }
+          },
 		"settings": {
 			"SerialPort": "/dev/ttyUSB0",
 			"HeartBeatValue": "&&\n0111-9999\n!!",
@@ -51,6 +70,8 @@ func (ctx initContext) GetHandlers() []*trigger.Handler {
 type TestRunner struct {
 }
 
+var Test action.Runner
+
 // Run implements action.Runner.Run
 func (tr *TestRunner) Run(context context.Context, action action.Action, uri string, options interface{}) (code int, data interface{}, err error) {
 	log.Infof("Ran Action (Run): %v", uri)
@@ -64,7 +85,22 @@ func (tr *TestRunner) RunAction(ctx context.Context, act action.Action, options 
 
 func (tr *TestRunner) Execute(ctx context.Context, act action.Action, inputs map[string]*data.Attribute) (results map[string]*data.Attribute, err error) {
 	log.Infof("Ran Action (Execute): %v", act)
+	value := inputs["data"].Value().(string)
+	log.Info(value)
 	return nil, nil
+}
+
+type TestAction struct {
+}
+
+func (tr *TestAction) Metadata() *action.Metadata {
+	log.Infof("Metadata")
+	return nil
+}
+
+func (tr *TestAction) IOMetadata() *data.IOMetadata {
+	log.Infof("IOMetadata")
+	return nil
 }
 
 func TestCreate(t *testing.T) {
@@ -95,33 +131,15 @@ func TestCreate(t *testing.T) {
 
 	initCtx := &initContext{handlers: make([]*trigger.Handler, 0, len(config.Handlers))}
 	runner := &TestRunner{}
+	action := &TestAction{}
 	//create handlers for that trigger and init
-
 	for _, hConfig := range config.Handlers {
-
-		/*
-			//create the action
-			actionFactory := action.GetFactory(hConfig.Action.Ref)
-			if actionFactory == nil {
-				log.Errorf("Action Factory '%s' not registered", hConfig.Action.Ref)
-			}
-
-			triggerConfg := hConfig.Action
-			act, err := actionFactory.New(triggerConfg.Config)
-			if err != nil {
-				log.Errorf("Error creating actionFactory: %v", err)
-			}
-		*/
-
 		log.Infof("hConfig: %v", hConfig)
 		log.Infof("trg.Metadata().Output: %v", trg.Metadata().Output)
 		log.Infof("trg.Metadata().Reply: %v", trg.Metadata().Reply)
 
-		//handler := &trigger.Handler{config: &hconfig, act: nil, outputMd: nil, replyMd: nil, runner: runner}
-		handler := trigger.NewHandler(hConfig, nil, trg.Metadata().Output, trg.Metadata().Reply, runner)
-		//handler := trigger.NewHandler(hConfig, act, trg.Metadata().Output, trg.Metadata().Reply, runner)
+		handler := trigger.NewHandler(hConfig, action, trg.Metadata().Output, trg.Metadata().Reply, runner)
 		initCtx.handlers = append(initCtx.handlers, handler)
-
 	}
 
 	newTrg.Initialize(initCtx)

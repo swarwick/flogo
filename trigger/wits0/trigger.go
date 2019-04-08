@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/TIBCOSoftware/flogo-lib/core/action"
 	"github.com/TIBCOSoftware/flogo-lib/core/trigger"
 	"github.com/TIBCOSoftware/flogo-lib/logger"
 	"github.com/tarm/serial"
@@ -16,39 +17,37 @@ import (
 // log is the default package logger
 var log = logger.GetLogger("trigger-wits0")
 
-// Factory My Trigger factory
-type Factory struct {
+// wits0TriggerFactory My wits0Trigger factory
+type wits0TriggerFactory struct {
 	metadata *trigger.Metadata
 }
 
-// NewFactory create a new Trigger factory
+// NewFactory create a new wits0Trigger factory
 func NewFactory(md *trigger.Metadata) trigger.Factory {
-	return &Factory{metadata: md}
+	return &wits0TriggerFactory{metadata: md}
 }
 
 // New Creates a new trigger instance for a given id
-func (t *Factory) New(config *trigger.Config) trigger.Trigger {
-	return &Trigger{metadata: t.metadata, config: config}
+func (t *wits0TriggerFactory) New(config *trigger.Config) trigger.Trigger {
+	return &wits0Trigger{metadata: t.metadata, config: config}
 }
 
-// Trigger is a stub for your Trigger implementation
-type Trigger struct {
+// wits0Trigger is the wits0Trigger implementation
+type wits0Trigger struct {
 	metadata  *trigger.Metadata
+	runner    action.Runner
 	config    *trigger.Config
 	handlers  []*trigger.Handler
 	stopCheck chan bool
 }
 
-// Initialize implements trigger.Init.Initialize
-func (t *Trigger) Initialize(ctx trigger.InitContext) error {
+func (t *wits0Trigger) Initialize(ctx trigger.InitContext) error {
 	log.Debug("Initialize")
 	t.handlers = ctx.GetHandlers()
-	t.stopCheck = make(chan bool)
 	return nil
 }
 
-// Metadata implements trigger.Trigger.Metadata
-func (t *Trigger) Metadata() *trigger.Metadata {
+func (t *wits0Trigger) Metadata() *trigger.Metadata {
 	return t.metadata
 }
 
@@ -73,20 +72,22 @@ func GetSafeNumber(endpoint *trigger.Handler, setting string, defaultValue int) 
 	return defaultValue
 }
 
-// Wits0Packet the WITS0 packet structure
-type Wits0Packet struct {
-	Records []Wits0Record
+// wits0Packet the WITS0 packet structure
+type wits0Packet struct {
+	Records []wits0Record
 }
 
-// Wits0Record the WITS0 record structure
-type Wits0Record struct {
+// wits0Record the WITS0 record structure
+type wits0Record struct {
 	Record string
 	Item   string
 	Data   string
 }
 
-// Start implements trigger.Trigger.Start
-func (t *Trigger) Start() error {
+// Start implements trigger.wits0Trigger.Start
+func (t *wits0Trigger) Start() error {
+	log.Debug("Start")
+	t.stopCheck = make(chan bool)
 	handlers := t.handlers
 	for _, handler := range handlers {
 		t.connectToSerial(handler)
@@ -94,7 +95,7 @@ func (t *Trigger) Start() error {
 	return nil
 }
 
-func (t *Trigger) connectToSerial(endpoint *trigger.Handler) {
+func (t *wits0Trigger) connectToSerial(endpoint *trigger.Handler) {
 
 	config := &serial.Config{
 		Name:        GetSettingSafe(endpoint, "SerialPort", ""),
@@ -158,7 +159,7 @@ readLoop:
 				indexEndIncludeStopPacket := indexEnd + len(packetFooterWithLineSeparator)
 				packet := check[indexStart:indexEndIncludeStopPacket]
 				lines := strings.Split(packet, lineEnding)
-				records := make([]Wits0Record, len(lines)-3)
+				records := make([]wits0Record, len(lines)-3)
 				parsingPackets := false
 				index := 0
 				for _, line := range lines {
@@ -176,20 +177,18 @@ readLoop:
 						parsingPackets = true
 					}
 				}
-				jsonRecord, err := json.Marshal(Wits0Packet{records})
+				jsonRecord, err := json.Marshal(wits0Packet{records})
 				if err != nil {
 					log.Error("Error converting packet to JSON: ", err)
 				} else {
-					log.Debug("JSON: ", string(jsonRecord))
+					trgData := make(map[string]interface{})
+					trgData["data"] = string(jsonRecord)
+					results, err := endpoint.Handle(context.Background(), trgData)
+					if err != nil {
+						log.Error("Error starting action: ", err.Error())
+					}
+					log.Debugf("Results: [%v]", results)
 				}
-				trgData := make(map[string]interface{})
-				trgData["data"] = jsonRecord
-				results, err := endpoint.Handle(context.Background(), trgData)
-				if err != nil {
-					log.Error("Error starting action: ", err.Error())
-				}
-				log.Debugf("Ran Handler: [%s]", endpoint)
-				log.Debugf("Results: [%v]", results)
 				buffer = bytes.NewBufferString(check[indexEndIncludeStopPacket:len(check)])
 			}
 		}
@@ -201,8 +200,8 @@ readLoop:
 	}
 }
 
-// Stop implements trigger.Trigger.Start
-func (t *Trigger) Stop() error {
+// Stop implements trigger.wits0Trigger.Start
+func (t *wits0Trigger) Stop() error {
 	// stop the trigger
 	close(t.stopCheck)
 	return nil
