@@ -38,7 +38,8 @@ const testConfig string = `{
 			"HeartBeatValue": "&&\n0111-9999\n!!",
 			"PacketHeader": "&&",
 			"PacketFooter": "!!",
-			"LineSeparator":"\r\n"
+			"LineSeparator":"\r\n",
+			"HeartBeatInterval": 2
 		}
 	}]
 }`
@@ -59,7 +60,8 @@ const testConfigBaseSerialPort string = `{
 			"HeartBeatValue": "&&\n0111-9999\n!!",
 			"PacketHeader": "&&",
 			"PacketFooter": "!!",
-			"LineSeparator":"\r\n"
+			"LineSeparator":"\r\n",
+			"HeartBeatInterval": 2
 		}
 	}]
 }`
@@ -79,17 +81,17 @@ var Test action.Runner
 
 // Run implements action.Runner.Run
 func (tr *TestRunner) Run(context context.Context, action action.Action, uri string, options interface{}) (code int, data interface{}, err error) {
-	log.Infof("Ran Action (Run): %v", uri)
+	//log.Infof("Ran Action (Run): %v", uri)
 	return 0, nil, nil
 }
 
 func (tr *TestRunner) RunAction(ctx context.Context, act action.Action, options map[string]interface{}) (results map[string]*data.Attribute, err error) {
-	log.Infof("Ran Action (RunAction): %v", act)
+	//log.Infof("Ran Action (RunAction): %v", act)
 	return nil, nil
 }
 
 func (tr *TestRunner) Execute(ctx context.Context, act action.Action, inputs map[string]*data.Attribute) (results map[string]*data.Attribute, err error) {
-	log.Infof("Ran Action (Execute): %v", act)
+	//log.Infof("Ran Action (Execute): %v", act)
 	value := inputs["data"].Value().(string)
 	log.Info(value)
 	return nil, nil
@@ -99,12 +101,12 @@ type TestAction struct {
 }
 
 func (tr *TestAction) Metadata() *action.Metadata {
-	log.Infof("Metadata")
+	//log.Infof("Metadata")
 	return nil
 }
 
 func (tr *TestAction) IOMetadata() *data.IOMetadata {
-	log.Infof("IOMetadata")
+	//log.Infof("IOMetadata")
 	return nil
 }
 

@@ -109,7 +109,8 @@ func (t *wits0Trigger) connectToSerial(endpoint *trigger.Handler) {
 	packetHeader := GetSettingSafe(endpoint, "PacketHeader", "&&")
 	packetFooter := GetSettingSafe(endpoint, "PacketFooter", "!!")
 	lineEnding := GetSettingSafe(endpoint, "LineSeparator", "\r\n")
-	heartBeatValue := GetSettingSafe(endpoint, "HeartBeatValue", "&&\n0111-9999\n!!")
+	heartBeatValue := GetSettingSafe(endpoint, "HeartBeatValue", "&&\r\n0111-9999\r\n!!\r\n")
+	heartBeatInterval := GetSafeNumber(endpoint, "HeartBeatInterval", 30)
 	packetFooterWithLineSeparator := packetFooter + lineEnding
 
 	log.Debug("Serial Config: ", config)
@@ -128,76 +129,105 @@ func (t *wits0Trigger) connectToSerial(endpoint *trigger.Handler) {
 
 	buf := make([]byte, 1024)
 	buffer := bytes.NewBufferString("")
+	t.heartBeat(heartBeatInterval, heartBeatValue, stream)
 readLoop:
 	for {
-		n, err := stream.Read(buf)
-		if err != nil {
-			log.Error(err)
-		}
-		if n > 0 {
-			buffer.Write(buf[:n])
-		}
-		if buffer.Len() > 0 {
-			check := buffer.String()
-			indexStart := strings.Index(check, packetHeader)
-			indexEnd := strings.Index(check, packetFooterWithLineSeparator)
-			if indexEnd >= 0 && indexStart >= 0 && indexEnd < indexStart {
-				buffer = bytes.NewBufferString(check[indexStart:len(check)])
-				log.Info("Dropping bad packet")
-				continue
-			}
-			if indexStart >= 0 {
-				startRemoved := string(check[indexStart:len(check)])
-				indexStartSecond := indexStart + strings.Index(startRemoved, packetHeader)
-				if indexStartSecond > 0 && indexStartSecond > indexStart && indexStartSecond < indexEnd {
-					buffer = bytes.NewBufferString(check[indexStartSecond+len(packetHeader) : len(check)])
-					log.Info("Dropping bad packet")
-					continue
-				}
-			}
-			if indexStart >= 0 && indexEnd > indexStart {
-				indexEndIncludeStopPacket := indexEnd + len(packetFooterWithLineSeparator)
-				packet := check[indexStart:indexEndIncludeStopPacket]
-				lines := strings.Split(packet, lineEnding)
-				records := make([]wits0Record, len(lines)-3)
-				parsingPackets := false
-				index := 0
-				for _, line := range lines {
-					line = strings.Replace(line, lineEnding, "", -1)
-					if parsingPackets {
-						if line == packetFooter {
-							parsingPackets = false
-						} else {
-							records[index].Record = line[0:2]
-							records[index].Item = line[2:4]
-							records[index].Data = line[4:len(line)]
-							index = index + 1
-						}
-					} else if line == packetHeader {
-						parsingPackets = true
-					}
-				}
-				jsonRecord, err := json.Marshal(wits0Packet{records})
-				if err != nil {
-					log.Error("Error converting packet to JSON: ", err)
-				} else {
-					trgData := make(map[string]interface{})
-					trgData["data"] = string(jsonRecord)
-					results, err := endpoint.Handle(context.Background(), trgData)
-					if err != nil {
-						log.Error("Error starting action: ", err.Error())
-					}
-					log.Debugf("Results: [%v]", results)
-				}
-				buffer = bytes.NewBufferString(check[indexEndIncludeStopPacket:len(check)])
-			}
-		}
+		buffer = readSerialData(endpoint, buffer, buf, stream, packetHeader, packetFooter, packetFooterWithLineSeparator, lineEnding)
 		select {
 		case <-t.stopCheck:
 			break readLoop
 		default:
 		}
 	}
+}
+
+func (t *wits0Trigger) heartBeat(heartBeatInterval int, heartBeatValue string, stream *serial.Port) {
+	if heartBeatInterval > 0 {
+		duration := time.Second * time.Duration(heartBeatInterval)
+
+		go func() {
+			start := time.Now()
+		writeLoop:
+			for {
+				time.Sleep(time.Millisecond * 100)
+				select {
+				case <-t.stopCheck:
+					break writeLoop
+				default:
+				}
+
+				elapsed := time.Now().Sub(start)
+				if elapsed > duration {
+					log.Debug("Sending heartbeat")
+					stream.Write([]byte(heartBeatValue))
+					start = time.Now()
+				}
+			}
+		}()
+	}
+}
+
+func readSerialData(endpoint *trigger.Handler, buffer *bytes.Buffer, buf []byte, stream *serial.Port, packetHeader string, packetFooter string, packetFooterWithLineSeparator string, lineEnding string) *bytes.Buffer {
+	n, err := stream.Read(buf)
+	if err != nil {
+		log.Error(err)
+	}
+	if n > 0 {
+		buffer.Write(buf[:n])
+	}
+	if buffer.Len() > 0 {
+		check := buffer.String()
+		indexStart := strings.Index(check, packetHeader)
+		indexEnd := strings.Index(check, packetFooterWithLineSeparator)
+		if indexEnd >= 0 && indexStart >= 0 && indexEnd < indexStart {
+			log.Info("Dropping initial bad packet")
+			return bytes.NewBufferString(check[indexStart:len(check)])
+		}
+		if indexStart >= 0 {
+			startRemoved := string(check[indexStart:len(check)])
+			indexStartSecond := indexStart + strings.Index(startRemoved, packetHeader)
+			if indexStartSecond > 0 && indexStartSecond > indexStart && indexStartSecond < indexEnd {
+				log.Info("Dropping bad packet")
+				return bytes.NewBufferString(check[indexStartSecond+len(packetHeader) : len(check)])
+			}
+		}
+		if indexStart >= 0 && indexEnd > indexStart {
+			indexEndIncludeStopPacket := indexEnd + len(packetFooterWithLineSeparator)
+			packet := check[indexStart:indexEndIncludeStopPacket]
+			lines := strings.Split(packet, lineEnding)
+			records := make([]wits0Record, len(lines)-3)
+			parsingPackets := false
+			index := 0
+			for _, line := range lines {
+				line = strings.Replace(line, lineEnding, "", -1)
+				if parsingPackets {
+					if line == packetFooter {
+						parsingPackets = false
+					} else {
+						records[index].Record = line[0:2]
+						records[index].Item = line[2:4]
+						records[index].Data = line[4:len(line)]
+						index = index + 1
+					}
+				} else if line == packetHeader {
+					parsingPackets = true
+				}
+			}
+			jsonRecord, err := json.Marshal(wits0Packet{records})
+			if err != nil {
+				log.Error("Error converting packet to JSON: ", err)
+			} else {
+				trgData := make(map[string]interface{})
+				trgData["data"] = string(jsonRecord)
+				_, err := endpoint.Handle(context.Background(), trgData)
+				if err != nil {
+					log.Error("Error starting action: ", err.Error())
+				}
+			}
+			return bytes.NewBufferString(check[indexEndIncludeStopPacket:len(check)])
+		}
+	}
+	return buffer
 }
 
 // Stop implements trigger.wits0Trigger.Start

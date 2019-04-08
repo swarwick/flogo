@@ -53,7 +53,7 @@
       {
         "name": "HeartBeatValue",
         "type": "string",
-        "value": "&&\n0111-9999\n!!"
+        "value": "&&\r\n0111-9999\r\n!!\r\n"
       },
       {
         "name": "PacketHeader",
