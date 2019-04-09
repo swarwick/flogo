@@ -160,6 +160,14 @@ const testData string = `
 0173-9999.00
 !!
 
+&&
+1984PASON/EDR
+631070.53
+631170.53
+633970.53
+634070.53
+!!
+
 `
 
 type initContext struct {
@@ -208,6 +216,18 @@ func (tr *TestAction) IOMetadata() *data.IOMetadata {
 
 func TestParse(t *testing.T) {
 	trg, config := createTrigger(t, testConfig)
+	initializeTrigger(t, trg, config)
+	serialPort := &serialPort{}
+	trgWits0 := trg.(*wits0Trigger)
+	serialPort.Init(trgWits0, trgWits0.handlers[0])
+	replaceData := strings.ReplaceAll(testData, "\n", "\r\n")
+	data := bytes.NewBufferString(replaceData)
+	outputBuffer := serialPort.parseBuffer(data)
+	log.Debug(outputBuffer)
+}
+
+func TestParseRaw(t *testing.T) {
+	trg, config := createTrigger(t, testConfigRaw)
 	initializeTrigger(t, trg, config)
 	serialPort := &serialPort{}
 	trgWits0 := trg.(*wits0Trigger)
