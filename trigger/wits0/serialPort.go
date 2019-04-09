@@ -10,21 +10,21 @@ import (
 	"github.com/tarm/serial"
 )
 
-type wits0SerialPort struct {
+type serialPort struct {
 	settings *wits0Settings
 	stream   *serial.Port
 	trigger  *wits0Trigger
 	endpoint *trigger.Handler
 }
 
-func (serialPort *wits0SerialPort) Init(trigger *wits0Trigger, endpoint *trigger.Handler) {
+func (serialPort *serialPort) Init(trigger *wits0Trigger, endpoint *trigger.Handler) {
 	serialPort.trigger = trigger
 	serialPort.endpoint = endpoint
 	serialPort.settings = &wits0Settings{}
 	serialPort.settings.Init(trigger, endpoint)
 }
 
-func (serialPort *wits0SerialPort) createSerialConnection() {
+func (serialPort *serialPort) createSerialConnection() {
 	log.Info("Connecting to serial port: " + serialPort.settings.serialConfig.Name)
 	stream, err := serial.OpenPort(serialPort.settings.serialConfig)
 	if err != nil {
@@ -38,7 +38,7 @@ func (serialPort *wits0SerialPort) createSerialConnection() {
 	serialPort.readSerialData()
 }
 
-func (serialPort *wits0SerialPort) heartBeat() {
+func (serialPort *serialPort) heartBeat() {
 	if serialPort.settings.heartBeatInterval > 0 {
 		duration := time.Second * time.Duration(serialPort.settings.heartBeatInterval)
 
@@ -64,7 +64,7 @@ func (serialPort *wits0SerialPort) heartBeat() {
 	}
 }
 
-func (serialPort *wits0SerialPort) readSerialData() {
+func (serialPort *serialPort) readSerialData() {
 	buf := make([]byte, 1024)
 	buffer := bytes.NewBufferString("")
 readLoop:
@@ -87,7 +87,7 @@ readLoop:
 	}
 }
 
-func (serialPort *wits0SerialPort) parseBuffer(buffer *bytes.Buffer) *bytes.Buffer {
+func (serialPort *serialPort) parseBuffer(buffer *bytes.Buffer) *bytes.Buffer {
 	for buffer.Len() > 0 {
 		check := buffer.String()
 		indexStart := strings.Index(check, serialPort.settings.packetHeader)

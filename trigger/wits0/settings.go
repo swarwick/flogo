@@ -1,6 +1,7 @@
 package wits0
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/TIBCOSoftware/flogo-lib/core/trigger"
@@ -44,4 +45,34 @@ func (settings *wits0Settings) Init(t *wits0Trigger, endpoint *trigger.Handler) 
 	log.Debug("heartBeatValue: ", settings.heartBeatValue)
 	log.Debug("heartBeatInterval: ", settings.heartBeatInterval)
 	log.Debug("outputRaw: ", settings.outputRaw)
+}
+
+// GetSettingSafe get a setting and returns default if not found
+func GetSettingSafe(endpoint *trigger.Handler, setting string, defaultValue string) string {
+	var retString string
+	defer func() {
+		if r := recover(); r != nil {
+			retString = defaultValue
+		}
+	}()
+	retString = endpoint.GetStringSetting(setting)
+	return retString
+}
+
+// GetSafeNumber gets the number from the config checking for empty and using default
+func GetSafeNumber(endpoint *trigger.Handler, setting string, defaultValue int) int {
+	if settingString := GetSettingSafe(endpoint, setting, ""); settingString != "" {
+		value, _ := strconv.Atoi(settingString)
+		return value
+	}
+	return defaultValue
+}
+
+// GetSafeBool gets the bool from the config checking for empty and using default
+func GetSafeBool(endpoint *trigger.Handler, setting string, defaultValue bool) bool {
+	if settingString := GetSettingSafe(endpoint, setting, ""); settingString != "" {
+		value, _ := strconv.ParseBool(settingString)
+		return value
+	}
+	return defaultValue
 }

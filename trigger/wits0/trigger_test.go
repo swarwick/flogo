@@ -209,7 +209,7 @@ func (tr *TestAction) IOMetadata() *data.IOMetadata {
 func TestParse(t *testing.T) {
 	trg, config := createTrigger(t, testConfig)
 	initializeTrigger(t, trg, config)
-	serialPort := &wits0SerialPort{}
+	serialPort := &serialPort{}
 	trgWits0 := trg.(*wits0Trigger)
 	serialPort.Init(trgWits0, trgWits0.handlers[0])
 	replaceData := strings.ReplaceAll(testData, "\n", "\r\n")

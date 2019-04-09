@@ -49,7 +49,7 @@ func (trigger *wits0Trigger) Start() error {
 	trigger.stopCheck = make(chan bool)
 	handlers := trigger.handlers
 	for _, handler := range handlers {
-		serial := &wits0SerialPort{}
+		serial := &serialPort{}
 		serial.Init(trigger, handler)
 		serial.createSerialConnection()
 	}
