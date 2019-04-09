@@ -75,18 +75,17 @@ Triggers are configured via the triggers.json of your application. The following
 
 ```json
 {
-	"id": "wits0",
-	"settings": {
-
-	},
-	"handlers": [{
-		"action": {
+    "id": "wits0",
+    "settings": {
+    },
+    "handlers": [{
+        "action": {
             "ref": "github.com/swarwick/flogo/action/flow",
             "data": {
               "flowURI": "res://flow:query"
             }
           },
-		"settings": {
+        "settings": {
             "SerialPort": "/dev/ttyUSB0",
             "BaudRate": 9600,
             "DataBits": 8,
@@ -94,12 +93,12 @@ Triggers are configured via the triggers.json of your application. The following
             "Parity": 0,
             "ReadTimeoutSeconds": 1,
             "HeartBeatInterval": 30,
-			"HeartBeatValue": "&&\n0111-9999\n!!",
-			"PacketHeader": "&&",
-			"PacketFooter": "!!",
+            "HeartBeatValue": "&&\n0111-9999\n!!",
+            "PacketHeader": "&&",
+            "PacketFooter": "!!",
             "LineSeparator": "\r\n",
             "OutputRaw": false
-		}
-	}]
+        }
+    }]
 }
 ```
