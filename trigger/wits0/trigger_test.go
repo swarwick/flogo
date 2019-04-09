@@ -1,9 +1,11 @@
 package wits0
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io/ioutil"
+	"strings"
 	"testing"
 	"time"
 
@@ -39,7 +41,29 @@ const testConfig string = `{
 			"PacketHeader": "&&",
 			"PacketFooter": "!!",
 			"LineSeparator":"\r\n",
-			"HeartBeatInterval": 2,
+			"HeartBeatInterval": 1
+		}
+	}]
+}`
+
+const testConfigRaw string = `{
+	"id": "wits0",
+	"settings": {
+
+	},
+	"handlers": [{
+		"action": {
+            "ref": "github.com/TIBCOSoftware/flogo-contrib/action/flow",
+            "data": {
+              "flowURI": "res://flow:query"
+            }
+          },
+		"settings": {
+			"SerialPort": "/dev/ttyUSB0",
+			"HeartBeatValue": "&&\n0111-9999\n!!",
+			"PacketHeader": "&&",
+			"PacketFooter": "!!",
+			"LineSeparator":"\r\n",			
 			"OutputRaw": true
 		}
 	}]
@@ -66,6 +90,77 @@ const testConfigBaseSerialPort string = `{
 		}
 	}]
 }`
+
+const testData string = `
+&&
+1984PASON/EDR
+01085871.95
+01105893.00
+0112110.00
+01130.00
+011544.38
+01170.00
+01190.00
+01200.00
+01210.00
+01220.00
+01230.00
+01240.00
+0125-9999.00
+0126718.42
+012717.50
+01281.06
+01300.00
+01374483.00
+0139-8888.00
+0140-9999.00
+0141-9999.00
+0142313557.96
+01430.00
+01444483.24
+01450.00
+01695896.69
+017023.30
+0171-4066.40
+0172-9999.00
+0173-9999.00
+!!
+
+&&
+1984PASON/EDR
+01085871.95
+01105893.00
+0112108.46
+01130.00
+011544.79
+01170.00
+01190.01
+01200.00
+01210.00
+01220.00
+01230.00
+01240.00
+0125-9999.00
+0126718.03
+012717.12
+01281.06
+01300.00
+01374483.00
+0139-8888.00
+0140-9999.00
+0141-9999.00
+0142313557.96
+01430.00
+01444483.24
+01450.00
+01695896.69
+017023.37
+0171-4066.40
+0172-9999.00
+0173-9999.00
+!!
+
+`
 
 type initContext struct {
 	handlers []*trigger.Handler
@@ -111,15 +206,32 @@ func (tr *TestAction) IOMetadata() *data.IOMetadata {
 	return nil
 }
 
+func TestParse(t *testing.T) {
+	trg, config := createTrigger(t, testConfig)
+	initializeTrigger(t, trg, config)
+	serialPort := &wits0SerialPort{}
+	trgWits0 := trg.(*wits0Trigger)
+	serialPort.Init(trgWits0, trgWits0.handlers[0])
+	replaceData := strings.ReplaceAll(testData, "\n", "\r\n")
+	data := bytes.NewBufferString(replaceData)
+	outputBuffer := serialPort.parseBuffer(data)
+	log.Debug(outputBuffer)
+}
 func TestConnect(t *testing.T) {
 	trg, config := createTrigger(t, testConfig)
-	initialTrigger(t, trg, config)
+	initializeTrigger(t, trg, config)
+	runTrigger(5, trg)
+}
+
+func TestConnectRaw(t *testing.T) {
+	trg, config := createTrigger(t, testConfigRaw)
+	initializeTrigger(t, trg, config)
 	runTrigger(5, trg)
 }
 
 func TestBadSerialPort(t *testing.T) {
 	trg, config := createTrigger(t, testConfigBaseSerialPort)
-	initialTrigger(t, trg, config)
+	initializeTrigger(t, trg, config)
 	runTrigger(5, trg)
 }
 
@@ -152,7 +264,7 @@ func createTrigger(t *testing.T, conf string) (trigger.Trigger, trigger.Config) 
 	return trg, config
 }
 
-func initialTrigger(t *testing.T, trg trigger.Trigger, config trigger.Config) trigger.Initializable {
+func initializeTrigger(t *testing.T, trg trigger.Trigger, config trigger.Config) trigger.Initializable {
 	if trg == nil {
 		t.Fail()
 		return nil
